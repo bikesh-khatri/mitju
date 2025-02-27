@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
-from PIL import Image, ImageTk
+import re  # For email and phone number validation
 
 # Dictionary to store registered admin users
 admin_data = {}
@@ -15,28 +15,59 @@ def open_login():
     registration_win.withdraw()  # Hide the registration window
     login_win.deiconify()  # Show the login window
 
+# Function to validate email format
+def validate_email(email):
+    pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
+    return re.match(pattern, email)
+
+# Function to validate phone number format
+def validate_phone_number(phone_number):
+    pattern = r"^\d{10}$"  # Assumes a 10-digit phone number
+    return re.match(pattern, phone_number)
+
 # Function to register a new admin
 def register():
-    first_name = entry_first_name.get()
-    last_name = entry_last_name.get()
-    email = entry_email.get()
-    password = entry_password.get()
-    confirm_password = entry_confirm_password.get()
+    first_name = entry_first_name.get().strip()
+    last_name = entry_last_name.get().strip()
+    ph_no = entry_ph_no.get().strip()
+    address = entry_address.get().strip()
+    email = entry_email.get().strip()
+    password = entry_password.get().strip()
+    confirm_password = entry_confirm_password.get().strip()
 
-    if not first_name or not last_name or not email or not password or not confirm_password:
+    # Validate all fields are filled
+    if not first_name or not last_name or not ph_no or not address or not email or not password or not confirm_password:
         messagebox.showerror("Error", "All fields are required!", icon='error', parent=registration_win)
-    elif password != confirm_password:
+        return
+
+    # Validate email format
+    if not validate_email(email):
+        messagebox.showerror("Error", "Invalid email format!", icon='error', parent=registration_win)
+        return
+
+    # Validate phone number format
+    if not validate_phone_number(ph_no):
+        messagebox.showerror("Error", "Phone number must be 10 digits!", icon='error', parent=registration_win)
+        return
+
+    # Validate password match
+    if password != confirm_password:
         messagebox.showerror("Error", "Passwords do not match!", icon='error', parent=registration_win)
-    elif email in admin_data:  # Check if email is already registered
+        return
+
+    # Check if email is already registered
+    if email in admin_data:
         messagebox.showerror("Error", f"{email} is already registered!", icon='error', parent=registration_win)
-    else:
-        admin_data[email] = password  # Store credentials
-        messagebox.showinfo("Success", "Registration successful!\nRedirecting to login page...", icon='info', parent=registration_win)
-        open_login()
+        return
+
+    # Store credentials
+    admin_data[email] = password
+    messagebox.showinfo("Success", "Registration successful!\nRedirecting to login page...", icon='info', parent=registration_win)
+    open_login()
 
 # Function to create the registration page
 def registration_page():
-    global registration_win, entry_first_name, entry_last_name, entry_email, entry_password, entry_confirm_password
+    global registration_win, entry_first_name, entry_last_name, entry_ph_no, entry_address, entry_email, entry_password, entry_confirm_password
 
     registration_win = tk.Toplevel()
     registration_win.title("Admin Registration Page")
@@ -47,32 +78,35 @@ def registration_page():
     registration_win.geometry("850x500")
     registration_win.configure(bg="#f4f4f4")  # Set grey background
 
-
     # Registration Form
-    form_frame = tk.Frame(registration_win, bg="white", bd=5)
+    form_frame = tk.Frame(registration_win, bg="white", bd=5, padx=20, pady=20)
     form_frame.place(relx=0.5, rely=0.5, anchor="center")
 
     tk.Label(form_frame, text="Admin Registration", font=("Arial", 18, "bold"), bg="white").grid(row=0, column=0, columnspan=2, pady=10)
 
-    entry_first_name = tk.Entry(form_frame, font=("Arial", 12))
-    entry_last_name = tk.Entry(form_frame, font=("Arial", 12))
-    entry_email = tk.Entry(form_frame, font=("Arial", 12))
-    entry_password = tk.Entry(form_frame, font=("Arial", 12), show="*")
-    entry_confirm_password = tk.Entry(form_frame, font=("Arial", 12), show="*")
+    # Form fields
+    labels = ["First Name:", "Last Name:", "Phone Number:", "Address:", "Email:", "Password:", "Confirm Password:"]
+    entries = []
 
-    labels = ["First Name:", "Last Name:", "Email:", "Password:", "Confirm Password:"]
-    entries = [entry_first_name, entry_last_name, entry_email, entry_password, entry_confirm_password]
-
-    for i, (label, entry) in enumerate(zip(labels, entries)):
+    for i, label in enumerate(labels):
         tk.Label(form_frame, text=label, font=("Arial", 12), bg="white").grid(row=i+1, column=0, sticky="w", pady=5)
+        if label == "Password:" or label == "Confirm Password:":
+            entry = tk.Entry(form_frame, font=("Arial", 12), show="*")  # Show asterisks for password fields
+        else:
+            entry = tk.Entry(form_frame, font=("Arial", 12))
         entry.grid(row=i+1, column=1, pady=5, padx=10)
+        entries.append(entry)
 
-    tk.Button(form_frame, text="Register", command=register, bg="#4CAF50", fg="white", font=("Arial", 12)).grid(row=6, column=0, columnspan=2, pady=20)
+    # Assign entries to global variables
+    entry_first_name, entry_last_name, entry_ph_no, entry_address, entry_email, entry_password, entry_confirm_password = entries
+
+    # Register button
+    tk.Button(form_frame, text="Register", command=register, bg="#4CAF50", fg="white", font=("Arial", 12)).grid(row=len(labels)+1, column=0, columnspan=2, pady=20)
 
     # Already a member? Option
-    tk.Label(form_frame, text="Already a member?", font=("Arial", 10), bg="white").grid(row=7, column=0, pady=5, sticky="e")
+    tk.Label(form_frame, text="Already a member?", font=("Arial", 10), bg="white").grid(row=len(labels)+2, column=0, pady=5, sticky="e")
     btn_login = tk.Button(form_frame, text="Login Here", font=("Arial", 10, "underline"), fg="blue", bg="white", bd=0, cursor="hand2", command=open_login)
-    btn_login.grid(row=7, column=1, sticky="w")
+    btn_login.grid(row=len(labels)+2, column=1, sticky="w")
 
 # Function to handle login
 def login():
@@ -97,7 +131,6 @@ def login_page():
         print("Icon file not found or invalid. Skipping icon setting.")
     login_win.geometry("900x500")
     login_win.configure(bg="#f4f4f4")  # Set grey background
-
 
     # Add a centered login form
     frame = tk.Frame(login_win, bg="white", padx=40, pady=40)
@@ -131,7 +164,7 @@ def open_dashboard():
     dashboard.configure(bg="#f0f0f0")
 
     # Back arrow button in top left corner
-    back_button = tk.Button(dashboard, text="←", font=("Arial", 10, ), command=lambda: logout(dashboard),
+    back_button = tk.Button(dashboard, text="←", font=("Arial", 10), command=lambda: logout(dashboard),
                            bg="#FF5733", fg="white", padx=10, pady=5)
     back_button.place(x=10, y=10)
 
