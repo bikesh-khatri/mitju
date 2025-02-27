@@ -1,14 +1,15 @@
 import tkinter as tk
 from tkinter import messagebox
-from tkinter import ttk  # Added for Treeview
-import re  # For email and phone number validation
+from tkinter import ttk
+import re
 import sqlite3
+from datetime import datetime
 
 # Database connection function
 def get_db_connection():
     return sqlite3.connect('data.db')
 
-# Initialize database with users table
+# Initialize database with users, income, and expenses tables
 def init_db():
     conn = get_db_connection()
     c = conn.cursor()
@@ -21,10 +22,26 @@ def init_db():
         password VARCHAR(255),
         balance DECIMAL(10,2) DEFAULT 0
     )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS income (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        amount DECIMAL(10,2),
+        description TEXT,
+        Date TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )''')
+    c.execute('''CREATE TABLE IF NOT EXISTS expenses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        amount DECIMAL(10,2),
+        description TEXT,
+        Date TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )''')
     conn.commit()
     conn.close()
 
-# Login page function with all logic and GUI
+# Login page function
 def login_page():
     def validate_login():
         email = entry_login_email.get()
@@ -32,13 +49,14 @@ def login_page():
 
         conn = get_db_connection()
         c = conn.cursor()
-        c.execute("SELECT * FROM users WHERE email=? AND password=?", (email, password))
+        c.execute("SELECT id FROM users WHERE email=? AND password=?", (email, password))
         user = c.fetchone()
         conn.close()
 
         if user:
+            user_id = user[0]  # Capture the user_id
             login_win.withdraw()
-            open_dashboard()
+            open_dashboard(user_id)  # Pass user_id to dashboard
         else:
             messagebox.showerror("Login Failed", "Invalid credentials", parent=login_win)
 
@@ -71,7 +89,7 @@ def login_page():
 
     login_win.mainloop()
 
-# Registration page function with all logic and GUI
+# Register page function (unchanged)
 def register_page():
     def validate_email(email):
         pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
@@ -151,55 +169,46 @@ def register_page():
     tk.Button(form_frame, text="Login Here", font=("Arial", 10, "underline"), fg="blue", bg="white", bd=0, cursor="hand2", 
               command=lambda: [registration_win.withdraw(), login_win.deiconify()]).grid(row=len(labels)+2, column=1, sticky="w")
 
-# Function to open the dashboard
-def open_dashboard():
-    global dashboard  # Declare dashboard as global to make it accessible in add_entry
+# Dashboard function with user_id parameter
+def open_dashboard(user_id):
+    global dashboard, income_button, expenses_button, table, entry_amount, entry_description
     dashboard = tk.Toplevel()
     dashboard.title("Admin Dashboard")
     try:
-        dashboard.iconbitmap("logi.ico")  # Set window icon
+        dashboard.iconbitmap("logi.ico")
     except tk.TclError:
         print("Icon file not found or invalid. Skipping icon setting.")
     dashboard.geometry("800x600")
     dashboard.configure(bg="#f0f0f0")
 
-    # Back arrow button in top left corner
     back_button = tk.Button(dashboard, text="←", font=("Arial", 10), command=lambda: logout(dashboard),
                            bg="#FF5733", fg="white", padx=10, pady=5)
     back_button.place(x=10, y=10)
 
     tk.Label(dashboard, text="Welcome, Admin!", font=("Arial", 24, "bold"), bg="#f0f0f0").pack(pady=20)
 
-    # Income and Expenses buttons frame
     button_frame = tk.Frame(dashboard, bg="#f0f0f0")
     button_frame.pack(pady=10)
 
-    global income_button, expenses_button, table, entry_amount, entry_description, entry_date
-    global income_data, expenses_data
-    income_data = []
-    expenses_data = []
-
-    income_button = tk.Button(button_frame, text="Income", command=lambda: [income_button.config(state='active'), expenses_button.config(state='normal'), show_income()], 
-                            bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=5)
+    income_button = tk.Button(button_frame, text="Income", command=lambda: show_income(user_id), 
+                              bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=5)
     income_button.grid(row=0, column=0, padx=10)
 
-    expenses_button = tk.Button(button_frame, text="Expenses", command=lambda: [expenses_button.config(state='active'), income_button.config(state='normal'), show_expenses()], 
-                              bg="#FF5733", fg="white", font=("Arial", 12), padx=20, pady=5)
+    expenses_button = tk.Button(button_frame, text="Expenses", command=lambda: show_expenses(user_id), 
+                                bg="#FF5733", fg="white", font=("Arial", 12), padx=20, pady=5)
     expenses_button.grid(row=0, column=1, padx=10)
 
-    # Table to display income/expenses details
-    table = ttk.Treeview(dashboard, columns=("S.No", "Amount", "Description", "Date"), show="headings", height=10)
-    table.heading("S.No", text="S.No")
+    table = ttk.Treeview(dashboard, columns=("ID", "Amount", "Description", "Date"), show="headings", height=10)
+    table.heading("ID", text="ID")
     table.heading("Amount", text="Amount")
     table.heading("Description", text="Description")
     table.heading("Date", text="Date")
-    table.column("S.No", width=50)
+    table.column("ID", width=50)
     table.column("Amount", width=100)
     table.column("Description", width=200)
-    table.column("Date", width=100)
+    table.column("Date", width=150)
     table.pack(pady=20, padx=10, fill="both", expand=True)
 
-    # Add new entry frame
     entry_frame = tk.Frame(dashboard, bg="#f0f0f0")
     entry_frame.pack(pady=10)
 
@@ -211,55 +220,75 @@ def open_dashboard():
     entry_description = tk.Entry(entry_frame, font=("Arial", 12))
     entry_description.grid(row=0, column=3, padx=5)
 
-    tk.Label(entry_frame, text="Date:", font=("Arial", 12), bg="#f0f0f0").grid(row=0, column=4, padx=5)
-    entry_date = tk.Entry(entry_frame, font=("Arial", 12))
-    entry_date.grid(row=0, column=5, padx=5)
+    add_button = tk.Button(entry_frame, text="Add", command=lambda: add_entry(user_id), 
+                           bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=5)
+    add_button.grid(row=0, column=4, padx=10)
 
-    add_button = tk.Button(entry_frame, text="Add", command=lambda: add_entry(), 
-                         bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=5)
-    add_button.grid(row=0, column=6, padx=10)
-
-    # Logout button
     tk.Button(dashboard, text="Logout", command=lambda: logout(dashboard), bg="#FF5733", fg="white", 
-             font=("Arial", 12), padx=10, pady=5).pack(pady=20)
+              font=("Arial", 12), padx=10, pady=5).pack(pady=20)
 
-    # Set initial state and show income by default
-    income_button.config(state='active')
-    expenses_button.config(state='normal')
-    show_income()
+    # Show income by default
+    show_income(user_id)
 
-def show_income():
-    global table, income_data
-    table.delete(*table.get_children())  # Fixed typo: changed tableergy to table
-    for i, entry in enumerate(income_data):
-        table.insert("", "end", values=(i+1, entry["amount"], entry["description"], entry["date"]))
-
-def show_expenses():
-    global table, expenses_data
+def show_income(user_id):
+    global table, income_button, expenses_button
+    income_button.config(relief="sunken")
+    expenses_button.config(relief="raised")
     table.delete(*table.get_children())
-    for i, entry in enumerate(expenses_data):
-        table.insert("", "end", values=(i+1, entry["amount"], entry["description"], entry["date"]))
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, amount, description, Date FROM income WHERE user_id=?", (user_id,))
+    rows = c.fetchall()
+    conn.close()
+    for row in rows:
+        table.insert("", "end", values=row)
 
-def add_entry():
-    global entry_amount, entry_description, entry_date, income_data, expenses_data, income_button, dashboard
+def show_expenses(user_id):
+    global table, income_button, expenses_button
+    expenses_button.config(relief="sunken")
+    income_button.config(relief="raised")
+    table.delete(*table.get_children())
+    conn = get_db_connection()
+    c = conn.cursor()
+    c.execute("SELECT id, amount, description, Date FROM expenses WHERE user_id=?", (user_id,))
+    rows = c.fetchall()
+    conn.close()
+    for row in rows:
+        table.insert("", "end", values=row)
+
+def add_entry(user_id):
+    global entry_amount, entry_description, income_button, dashboard
     amount = entry_amount.get().strip()
     description = entry_description.get().strip()
-    date = entry_date.get().strip()
+    current_date = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
-    if not amount or not description or not date:
-        messagebox.showerror("Error", "All fields are required!", icon='error', parent=dashboard)
+    if not amount or not description:
+        messagebox.showerror("Error", "Amount and Description are required!", parent=dashboard)
         return
 
-    if income_button['state'] == 'active':
-        income_data.append({"amount": amount, "description": description, "date": date})
-        show_income()
-    else:
-        expenses_data.append({"amount": amount, "description": description, "date": date})
-        show_expenses()
+    try:
+        amount = float(amount)
+    except ValueError:
+        messagebox.showerror("Error", "Amount must be a valid number!", parent=dashboard)
+        return
 
+    conn = get_db_connection()
+    c = conn.cursor()
+
+    if income_button.cget('relief') == "sunken":
+        c.execute("INSERT INTO income (user_id, amount, description, Date) VALUES (?, ?, ?, ?)",
+                  (user_id, amount, description, current_date))
+        conn.commit()
+        show_income(user_id)
+    else:
+        c.execute("INSERT INTO expenses (user_id, amount, description, Date) VALUES (?, ?, ?, ?)",
+                  (user_id, amount, description, current_date))
+        conn.commit()
+        show_expenses(user_id)
+
+    conn.close()
     entry_amount.delete(0, "end")
     entry_description.delete(0, "end")
-    entry_date.delete(0, "end")
 
 def logout(dashboard):
     dashboard.destroy()
