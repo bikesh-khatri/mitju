@@ -3,7 +3,9 @@ from tkinter import messagebox
 from tkinter import ttk
 import re
 import sqlite3
-from datetime import datetime
+from datetime import datetime, timedelta
+import matplotlib.pyplot as plt
+from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
 # Database connection function
 def get_db_connection():
@@ -41,7 +43,7 @@ def init_db():
     conn.commit()
     conn.close()
 
-# Login page function
+# Login page function (unchanged)
 def login_page():
     def validate_login():
         email = entry_login_email.get()
@@ -54,9 +56,9 @@ def login_page():
         conn.close()
 
         if user:
-            user_id = user[0]  # Capture the user_id
+            user_id = user[0]
             login_win.withdraw()
-            open_dashboard(user_id)  # Pass user_id to dashboard
+            open_dashboard(user_id)
         else:
             messagebox.showerror("Login Failed", "Invalid credentials", parent=login_win)
 
@@ -169,7 +171,7 @@ def register_page():
     tk.Button(form_frame, text="Login Here", font=("Arial", 10, "underline"), fg="blue", bg="white", bd=0, cursor="hand2", 
               command=lambda: [registration_win.withdraw(), login_win.deiconify()]).grid(row=len(labels)+2, column=1, sticky="w")
 
-# Dashboard function with user_id parameter
+# Dashboard function (unchanged except for compare button)
 def open_dashboard(user_id):
     global dashboard, income_button, expenses_button, table, entry_amount, entry_description, profile_button, compare_button, balance_label
     dashboard = tk.Toplevel()
@@ -178,14 +180,13 @@ def open_dashboard(user_id):
         dashboard.iconbitmap("logi.ico")
     except tk.TclError:
         print("Icon file not found or invalid. Skipping icon setting.")
-    dashboard.attributes('-fullscreen', True)  # Open in full-screen mode
+    dashboard.attributes('-fullscreen', True)
     dashboard.configure(bg="#f0f0f0")
 
     profile_button = tk.Button(dashboard, text="👤", font=("Arial", 14), command=lambda: open_profile_edit(user_id),
                               bg="#f0f0f0", fg="black", bd=0)
-    profile_button.place(x=dashboard.winfo_screenwidth() - 40, y=10)  # Positioned dynamically in top right corner for full screen
+    profile_button.place(x=dashboard.winfo_screenwidth() - 40, y=10)
 
-    # Label for balance just below the profile icon with improved positioning, moved further to the left
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT (SELECT COALESCE(SUM(amount), 0) FROM income WHERE user_id=?) - (SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id=?) AS balance", (user_id, user_id))
@@ -193,7 +194,7 @@ def open_dashboard(user_id):
     conn.close()
     
     balance_label = tk.Label(dashboard, text=f"Balance: RS{balance:.2f}", font=("Arial", 14), bg="#f0f0f0", fg="black")
-    balance_label.place(x=dashboard.winfo_screenwidth() - 200, y=40)  # Moved further left by increasing x offset to -200
+    balance_label.place(x=dashboard.winfo_screenwidth() - 200, y=40)
 
     tk.Label(dashboard, text="Welcome, Admin!", font=("Arial", 24, "bold"), bg="#f0f0f0").pack(pady=20)
 
@@ -210,7 +211,7 @@ def open_dashboard(user_id):
 
     compare_button = tk.Button(button_frame, text="Compare", command=lambda: open_compare_dashboard(user_id), 
                               bg="#2196F3", fg="white", font=("Arial", 12), padx=20, pady=5)
-    compare_button.grid(row=0, column=2, padx=50)  # Large gap (padx=50) between Expenses and Compare
+    compare_button.grid(row=0, column=2, padx=50)
 
     table = ttk.Treeview(dashboard, columns=("ID", "Amount", "Description", "Date"), show="headings", height=10)
     table.heading("ID", text="ID")
@@ -238,11 +239,9 @@ def open_dashboard(user_id):
                            bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=5)
     add_button.grid(row=0, column=4, padx=10)
 
-
     tk.Button(dashboard, text="Logout", command=lambda: logout(dashboard), bg="#FF5733", fg="white", 
               font=("Arial", 12), padx=10, pady=5).pack(pady=20)
 
-    # Show income by default
     show_income(user_id)
 
 def show_income(user_id):
@@ -295,13 +294,13 @@ def add_entry(user_id):
                   (user_id, amount, description, current_date))
         conn.commit()
         show_income(user_id)
-        update_balance(user_id)  # Update balance after adding income
+        update_balance(user_id)
     else:
         c.execute("INSERT INTO expenses (user_id, amount, description, Date) VALUES (?, ?, ?, ?)",
                   (user_id, amount, description, current_date))
         conn.commit()
         show_expenses(user_id)
-        update_balance(user_id)  # Update balance after adding expense
+        update_balance(user_id)
 
     conn.close()
     entry_amount.delete(0, "end")
@@ -344,7 +343,6 @@ def open_profile_edit(user_id):
         finally:
             conn.close()
 
-    # Fetch current user details
     conn = get_db_connection()
     c = conn.cursor()
     c.execute("SELECT Name, email, address, phone_number, password FROM users WHERE id=?", (user_id,))
@@ -409,35 +407,96 @@ def open_compare_dashboard(user_id):
         compare_dashboard.iconbitmap("logi.ico")
     except tk.TclError:
         print("Icon file not found or invalid. Skipping icon setting.")
-    compare_dashboard.geometry("800x600")  # You can adjust the size as needed
+    compare_dashboard.geometry("800x600")
     compare_dashboard.configure(bg="#f0f0f0")
 
-    tk.Label(compare_dashboard, text="Compare Income and Expenses", font=("Arial", 24, "bold"), bg="#f0f0f0").pack(pady=20)
+    tk.Label(compare_dashboard, text="Income vs Expenses", font=("Arial", 24, "bold"), bg="#f0f0f0").pack(pady=20)
 
-    # Add comparison logic here (e.g., tables or charts to compare income and expenses)
-    compare_table = ttk.Treeview(compare_dashboard, columns=("Type", "Total Amount", "Date Range"), show="headings", height=10)
-    compare_table.heading("Type", text="Type")
-    compare_table.heading("Total Amount", text="Total Amount")
-    compare_table.heading("Date Range", text="Date Range")
-    compare_table.column("Type", width=100)
-    compare_table.column("Total Amount", width=150)
-    compare_table.column("Date Range", width=200)
-    compare_table.pack(pady=20, padx=10, fill="both", expand=True)
+    # Frame for buttons
+    button_frame = tk.Frame(compare_dashboard, bg="#f0f0f0")
+    button_frame.pack(pady=10)
 
-    # Simple example: Fetch and display total income and expenses for the user
-    conn = get_db_connection()
-    c = conn.cursor()
-    
-    c.execute("SELECT SUM(amount), 'Income' as type FROM income WHERE user_id=? UNION SELECT SUM(amount), 'Expenses' as type FROM expenses WHERE user_id=?", (user_id, user_id))
-    totals = c.fetchall()
-    conn.close()
+    # Variables to hold the canvas
+    canvas = None
 
-    for total in totals:
-        if total[0]:  # Only insert if there’s a total (not None)
-            compare_table.insert("", "end", values=(total[1], f"RS{total[0]:.2f}", "All Time"))
+    def plot_graph(days):
+        nonlocal canvas
+        if canvas:
+            canvas.get_tk_widget().destroy()  # Remove previous graph
 
-    tk.Button(compare_dashboard, text="Close", command=compare_dashboard.destroy, bg="#FF5733", fg="white", 
-              font=("Arial", 12), padx=10, pady=5).pack(pady=20)
+        # Calculate start date based on user selection
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=days)
+        start_date_str = start_date.strftime('%Y-%m-%d %H:%M:%S')
+        end_date_str = end_date.strftime('%Y-%m-%d %H:%M:%S')
+
+        # Fetch data from database
+        conn = get_db_connection()
+        c = conn.cursor()
+        c.execute("SELECT Date, amount FROM income WHERE user_id=? AND Date BETWEEN ? AND ? ORDER BY Date", 
+                  (user_id, start_date_str, end_date_str))
+        income_data = c.fetchall()
+        c.execute("SELECT Date, amount FROM expenses WHERE user_id=? AND Date BETWEEN ? AND ? ORDER BY Date", 
+                  (user_id, start_date_str, end_date_str))
+        expenses_data = c.fetchall()
+        conn.close()
+
+        # Prepare data for cumulative plotting
+        dates = [start_date]  # Start from beginning of period
+        income_totals = [0.0]  # Start at zero
+        expenses_totals = [0.0]  # Start at zero
+
+        # Process income
+        for date_str, amount in income_data:
+            date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+            if date > dates[-1]:
+                dates.append(date)
+                income_totals.append(income_totals[-1])  # Carry forward previous total
+                expenses_totals.append(expenses_totals[-1])
+            income_totals[-1] += float(amount)
+
+        # Process expenses
+        for date_str, amount in expenses_data:
+            date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+            if date > dates[-1]:
+                dates.append(date)
+                income_totals.append(income_totals[-1])  # Carry forward previous total
+                expenses_totals.append(expenses_totals[-1])
+            expenses_totals[-1] += float(amount)
+
+        # Ensure graph ends at current time
+        if dates[-1] < end_date:
+            dates.append(end_date)
+            income_totals.append(income_totals[-1])
+            expenses_totals.append(expenses_totals[-1])
+
+        # Create the plot
+        fig = plt.Figure(figsize=(10, 5))
+        ax = fig.add_subplot(111)
+        ax.plot(dates, income_totals, 'g-', label='Income', linewidth=2)
+        ax.plot(dates, expenses_totals, 'r-', label='Expenses', linewidth=2)
+        ax.set_xlabel('Time')
+        ax.set_ylabel('Amount (RS)')
+        ax.set_title(f'Income vs Expenses (Last {"Month" if days == 30 else "Week"})')
+        ax.legend()
+        ax.grid(True)
+        fig.autofmt_xdate()  # Rotate and align date labels
+
+        # Embed in Tkinter
+        canvas = FigureCanvasTkAgg(fig, master=compare_dashboard)
+        canvas.draw()
+        canvas.get_tk_widget().pack(pady=20, fill="both", expand=True)
+
+    tk.Button(button_frame, text="Last Month", command=lambda: plot_graph(30), 
+              bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=5).grid(row=0, column=0, padx=10)
+    tk.Button(button_frame, text="Last Week", command=lambda: plot_graph(7), 
+              bg="#FF5733", fg="white", font=("Arial", 12), padx=20, pady=5).grid(row=0, column=1, padx=10)
+
+    tk.Button(compare_dashboard, text="Close", command=compare_dashboard.destroy, 
+              bg="#FF5733", fg="white", font=("Arial", 12), padx=10, pady=5).pack(pady=20)
+
+    # Plot last month by default
+    plot_graph(30)
 
 def update_balance(user_id):
     global balance_label
@@ -451,3 +510,5 @@ def update_balance(user_id):
 if __name__ == "__main__":
     init_db()
     login_page()
+
+    ##dfsdfsdfa

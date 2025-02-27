@@ -209,10 +209,12 @@ def open_dashboard(user_id):
                                 bg="#FF5733", fg="white", font=("Arial", 12), padx=20, pady=5)
     expenses_button.grid(row=0, column=1, padx=10)
 
+    # Yo button click garda compare khulcha
     compare_button = tk.Button(button_frame, text="Compare", command=lambda: open_compare_dashboard(user_id), 
                               bg="#2196F3", fg="white", font=("Arial", 12), padx=20, pady=5)
     compare_button.grid(row=0, column=2, padx=50)
 
+    # Yo table ho
     table = ttk.Treeview(dashboard, columns=("ID", "Amount", "Description", "Date"), show="headings", height=10)
     table.heading("ID", text="ID")
     table.heading("Amount", text="Amount")
@@ -412,25 +414,25 @@ def open_compare_dashboard(user_id):
 
     tk.Label(compare_dashboard, text="Income vs Expenses", font=("Arial", 24, "bold"), bg="#f0f0f0").pack(pady=20)
 
-    # Frame for buttons
+    # Yo frame ma buttons rakheko cha
     button_frame = tk.Frame(compare_dashboard, bg="#f0f0f0")
     button_frame.pack(pady=10)
 
-    # Variables to hold the canvas
+    # Canvas variable to hold the graph
     canvas = None
 
     def plot_graph(days):
         nonlocal canvas
         if canvas:
-            canvas.get_tk_widget().destroy()  # Remove previous graph
+            canvas.get_tk_widget().destroy()  # Purano graph hataucha
 
-        # Calculate start date based on user selection
+        # Time range calculate garne
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days)
         start_date_str = start_date.strftime('%Y-%m-%d %H:%M:%S')
         end_date_str = end_date.strftime('%Y-%m-%d %H:%M:%S')
 
-        # Fetch data from database
+        # Database bata data lincha
         conn = get_db_connection()
         c = conn.cursor()
         c.execute("SELECT Date, amount FROM income WHERE user_id=? AND Date BETWEEN ? AND ? ORDER BY Date", 
@@ -441,61 +443,70 @@ def open_compare_dashboard(user_id):
         expenses_data = c.fetchall()
         conn.close()
 
-        # Prepare data for cumulative plotting
-        dates = [start_date]  # Start from beginning of period
-        income_totals = [0.0]  # Start at zero
-        expenses_totals = [0.0]  # Start at zero
+        # Cumulative data prepare garne
+        dates = [start_date]  # Period ko suru dekhi
+        income_totals = [0.0]  # Suruma zero
+        expenses_totals = [0.0]  # Suruma zero
+        balance_totals = [0.0]  # Suruma zero (income - expenses)
 
-        # Process income
+        # Income process garne
         for date_str, amount in income_data:
             date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
             if date > dates[-1]:
                 dates.append(date)
-                income_totals.append(income_totals[-1])  # Carry forward previous total
+                income_totals.append(income_totals[-1])
                 expenses_totals.append(expenses_totals[-1])
+                balance_totals.append(balance_totals[-1])
             income_totals[-1] += float(amount)
+            balance_totals[-1] = income_totals[-1] - expenses_totals[-1]  # Balance update garne
 
-        # Process expenses
+        # Expenses process garne
         for date_str, amount in expenses_data:
             date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
             if date > dates[-1]:
                 dates.append(date)
-                income_totals.append(income_totals[-1])  # Carry forward previous total
+                income_totals.append(income_totals[-1])
                 expenses_totals.append(expenses_totals[-1])
+                balance_totals.append(balance_totals[-1])
             expenses_totals[-1] += float(amount)
+            balance_totals[-1] = income_totals[-1] - expenses_totals[-1]  # Balance update garne
 
-        # Ensure graph ends at current time
+        # Graph end date samma puryaucha
         if dates[-1] < end_date:
             dates.append(end_date)
             income_totals.append(income_totals[-1])
             expenses_totals.append(expenses_totals[-1])
+            balance_totals.append(balance_totals[-1])
 
-        # Create the plot
+        # Graph banaucha
         fig = plt.Figure(figsize=(10, 5))
         ax = fig.add_subplot(111)
-        ax.plot(dates, income_totals, 'g-', label='Income', linewidth=2)
-        ax.plot(dates, expenses_totals, 'r-', label='Expenses', linewidth=2)
+        ax.plot(dates, income_totals, 'g-', label='Income', linewidth=2)  # Green line income ko lagi
+        ax.plot(dates, expenses_totals, 'r-', label='Expenses', linewidth=2)  # Red line expenses ko lagi
+        ax.plot(dates, balance_totals, 'k-', label='Balance', linewidth=2)  # Black line balance ko lagi
         ax.set_xlabel('Time')
         ax.set_ylabel('Amount (RS)')
-        ax.set_title(f'Income vs Expenses (Last {"Month" if days == 30 else "Week"})')
+        ax.set_title(f'Income vs Expenses vs Balance (Last {"Month" if days == 30 else "Week"})')
         ax.legend()
         ax.grid(True)
-        fig.autofmt_xdate()  # Rotate and align date labels
+        fig.autofmt_xdate()  # Date labels rotate garne
 
-        # Embed in Tkinter
+        # Tkinter ma embed garne
         canvas = FigureCanvasTkAgg(fig, master=compare_dashboard)
         canvas.draw()
         canvas.get_tk_widget().pack(pady=20, fill="both", expand=True)
 
+    # Yo button click garda last month ko graph dekhaucha
     tk.Button(button_frame, text="Last Month", command=lambda: plot_graph(30), 
               bg="#4CAF50", fg="white", font=("Arial", 12), padx=20, pady=5).grid(row=0, column=0, padx=10)
+    # Yo button click garda last week ko graph dekhaucha
     tk.Button(button_frame, text="Last Week", command=lambda: plot_graph(7), 
               bg="#FF5733", fg="white", font=("Arial", 12), padx=20, pady=5).grid(row=0, column=1, padx=10)
 
     tk.Button(compare_dashboard, text="Close", command=compare_dashboard.destroy, 
               bg="#FF5733", fg="white", font=("Arial", 12), padx=10, pady=5).pack(pady=20)
 
-    # Plot last month by default
+    # Default ma last month dekhaucha
     plot_graph(30)
 
 def update_balance(user_id):
@@ -510,5 +521,3 @@ def update_balance(user_id):
 if __name__ == "__main__":
     init_db()
     login_page()
-
-    ##dfsdfsdfa
