@@ -510,3 +510,5 @@ def update_balance(user_id):
 if __name__ == "__main__":
     init_db()
     login_page()
+
+    ##dfsdfsdfa
