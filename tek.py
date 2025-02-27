@@ -443,50 +443,41 @@ def open_compare_dashboard(user_id):
         expenses_data = c.fetchall()
         conn.close()
 
-        # Cumulative data prepare garne
+        # Combine all transactions into a single timeline
+        all_transactions = [(datetime.strptime(date, '%Y-%m-%d %H:%M:%S'), float(amount), 'income') for date, amount in income_data] + \
+                          [(datetime.strptime(date, '%Y-%m-%d %H:%M:%S'), float(amount), 'expense') for date, amount in expenses_data]
+        all_transactions.sort(key=lambda x: x[0])  # Sort by date
+
+        # Prepare data for cumulative plotting
         dates = [start_date]  # Period ko suru dekhi
         income_totals = [0.0]  # Suruma zero
         expenses_totals = [0.0]  # Suruma zero
-        balance_totals = [0.0]  # Suruma zero (income - expenses)
 
-        # Income process garne
-        for date_str, amount in income_data:
-            date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+        # Process all transactions in chronological order
+        for date, amount, trans_type in all_transactions:
             if date > dates[-1]:
                 dates.append(date)
                 income_totals.append(income_totals[-1])
                 expenses_totals.append(expenses_totals[-1])
-                balance_totals.append(balance_totals[-1])
-            income_totals[-1] += float(amount)
-            balance_totals[-1] = income_totals[-1] - expenses_totals[-1]  # Balance update garne
-
-        # Expenses process garne
-        for date_str, amount in expenses_data:
-            date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-            if date > dates[-1]:
-                dates.append(date)
-                income_totals.append(income_totals[-1])
-                expenses_totals.append(expenses_totals[-1])
-                balance_totals.append(balance_totals[-1])
-            expenses_totals[-1] += float(amount)
-            balance_totals[-1] = income_totals[-1] - expenses_totals[-1]  # Balance update garne
+            if trans_type == 'income':
+                income_totals[-1] += amount
+            elif trans_type == 'expense':
+                expenses_totals[-1] += amount
 
         # Graph end date samma puryaucha
         if dates[-1] < end_date:
             dates.append(end_date)
             income_totals.append(income_totals[-1])
             expenses_totals.append(expenses_totals[-1])
-            balance_totals.append(balance_totals[-1])
 
         # Graph banaucha
         fig = plt.Figure(figsize=(10, 5))
         ax = fig.add_subplot(111)
         ax.plot(dates, income_totals, 'g-', label='Income', linewidth=2)  # Green line income ko lagi
         ax.plot(dates, expenses_totals, 'r-', label='Expenses', linewidth=2)  # Red line expenses ko lagi
-        ax.plot(dates, balance_totals, 'k-', label='Balance', linewidth=2)  # Black line balance ko lagi
         ax.set_xlabel('Time')
         ax.set_ylabel('Amount (RS)')
-        ax.set_title(f'Income vs Expenses vs Balance (Last {"Month" if days == 30 else "Week"})')
+        ax.set_title(f'Income vs Expenses (Last {"Month" if days == 30 else "Week"})')
         ax.legend()
         ax.grid(True)
         fig.autofmt_xdate()  # Date labels rotate garne
